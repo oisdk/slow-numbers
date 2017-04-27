@@ -5,10 +5,17 @@ module Numeric.Church where
 
 import Data.Function (fix)
 
+-- | Church numerals.
 newtype Nat = Nat { runNat :: forall a. (a -> a) -> a -> a }
 
 instance Eq Nat where
-    (==) n = runNat n (\c m -> runNat m (const (c (pred m))) False) (\(Nat nn) -> nn (const False) True)
+    (==) n =
+        runNat
+            n
+            (\c m ->
+                  runNat m (const (c (pred m))) False)
+            (\(Nat nn) ->
+                  nn (const False) True)
 
 instance Ord Nat where
     (<=) = flip (>=)
