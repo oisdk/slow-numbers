@@ -25,6 +25,18 @@ plusSame toBase toTest back = property $ do
     let zt = toTest x + toTest y
     toInteger zb === back zt
 
+subSameNat
+    :: (Integral a, Num b)
+    => (Integer -> a) -> (Integer -> b) -> (b -> Integer) -> Property
+subSameNat toBase toTest back = property $ do
+    x' <- forAll (Gen.integral (Range.linear 0 1000))
+    y' <- forAll (Gen.integral (Range.linear 0 1000))
+    let x = max x' y'
+    let y = min x' y'
+    let zb = toBase x - toBase y
+    let zt = toTest x - toTest y
+    toInteger zb === back zt
+
 multSame
     :: (Integral a, Num b)
     => (Integer -> a) -> (Integer -> b) -> (b -> Integer) -> Property
@@ -76,6 +88,14 @@ prop_DecimalMultSame =
         (fromInteger @ Natural . abs)
         (fromInteger @ Nat . abs)
         (foldr (\e a -> toInteger (fromEnum e) + 10 * a) 0 . getNat)
+
+prop_DecimalSubSame :: Property
+prop_DecimalSubSame =
+    subSameNat
+        (fromInteger @ Natural . abs)
+        (fromInteger @ Nat . abs)
+        (foldr (\e a -> toInteger (fromEnum e) + 10 * a) 0 . getNat)
+
 main :: IO Bool
 main = do
     doctest ["-isrc","src/"]
