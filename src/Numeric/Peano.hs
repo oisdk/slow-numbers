@@ -9,6 +9,33 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 
+-- | Peano numerals. Effort is made to make them as efficient as
+-- possible, and as lazy as possible, but they are many orders of
+-- magnitude less efficient than machine integers. They are primarily
+-- used for type-level programming, and occasionally for calculations
+-- which can be short-circuited.
+--
+-- For instance, to check if two lists are the same length, you could
+-- write:
+--
+-- @
+-- 'length' xs == 'length' ys
+-- @
+--
+-- But this unnecessarily traverses both lists. The more efficient
+-- version, on the other hand, is less clear:
+--
+-- @
+-- sameLength [] [] = True
+-- sameLength (_:xs) (_:ys) = sameLength xs ys
+-- sameLength _ _ = False
+-- @
+--
+-- Using @'Data.List.genericLength'@, on the other hand, the laziness of
+-- @'Peano'@ will indeed short-circuit:
+--
+-- >>> 'Data.List.genericLength' [1,2,3] == 'Data.List.genericLength' [1..]
+-- False
 module Numeric.Peano where
 
 import           Data.List              (unfoldr)
@@ -27,28 +54,30 @@ import           Numeric.Natural
 
 -- $setup
 -- >>> import Test.QuickCheck
+-- >>> import Data.List (genericLength)
+-- >>> default (Peano)
 -- >>> :{
--- instance Arbitrary Nat where
+-- instance Arbitrary Peano where
 --     arbitrary = fmap (fromInteger . getNonNegative) arbitrary
 -- :}
 
--- | Nat numbers. Care is taken to make operations as lazy as
+-- | Peano numbers. Care is taken to make operations as lazy as
 -- possible:
 --
 -- >>> 1 > S (S undefined)
 -- False
 -- >>> Z > undefined
 -- False
--- >>> 3 + (undefined :: Nat) >= 3
+-- >>> 3 + undefined >= 3
 -- True
 $(singletons [d|
-  data Nat
+  data Peano
       = Z
-      | S Nat
+      | S Peano
       deriving (Eq,Generic,Data,Typeable)
   |])
 -- | As lazy as possible
-instance Ord Nat where
+instance Ord Peano where
     compare Z Z         = EQ
     compare (S n) (S m) = compare n m
     compare Z (S _)     = LT
@@ -71,7 +100,7 @@ instance Ord Nat where
 -- | Subtraction stops at zero.
 --
 -- prop> n >= m ==> m - n == Z
-instance Num Nat where
+instance Num Peano where
     Z + m = m
     S n + m = S (n + m)
     Z * _ = Z
@@ -86,13 +115,13 @@ instance Num Nat where
 
 -- | The maximum bound here is infinity.
 --
--- prop> (maxBound :: Nat) > n
-instance Bounded Nat where
+-- prop> maxBound > (n :: Peano)
+instance Bounded Peano where
     minBound = Z
     maxBound = S maxBound
 
 $(promoteOnly [d|
-  instance Ord Nat where
+  instance Ord Peano where
       compare Z Z         = EQ
       compare (S n) (S m) = compare n m
       compare Z (S _)     = LT
@@ -116,7 +145,7 @@ $(promoteOnly [d|
       S n < S m = n < m
       Z < S _ = True
 
-  instance Num Nat where
+  instance Num Peano where
       Z + m = m
       S n + m = S (n + m)
       Z * _ = Z
@@ -129,50 +158,50 @@ $(promoteOnly [d|
       S n - S m = n - m
       n - _ = n
 
-  instance Bounded Nat where
+  instance Bounded Peano where
       minBound = Z
       maxBound = S maxBound
   |])
 
 -- | Shows integer representation.
-instance Show Nat where
+instance Show Peano where
     showsPrec n = showsPrec n . toInteger
 
 -- | Reads the integer representation.
-instance Read Nat where
+instance Read Peano where
     readsPrec d r =
         [ (fromIntegral (n :: Natural), xs)
         | (n,xs) <- readsPrec d r ]
 
 -- | Will obviously diverge for values like `maxBound`.
-instance NFData Nat where
+instance NFData Peano where
     rnf Z     = ()
     rnf (S n) = rnf n
 
 -- | Reasonably expensive.
-instance Real Nat where
+instance Real Peano where
     toRational = fromInteger . toInteger
 
 -- | Uses custom 'enumFrom', 'enumFromThen', 'enumFromThenTo' to avoid
 -- expensive conversions to and from 'Int'.
 --
--- >>> [1..3] :: [Nat]
+-- >>> [1..3]
 -- [1,2,3]
--- >>> [1..1] :: [Nat]
+-- >>> [1..1]
 -- [1]
--- >>> [2..1] :: [Nat]
+-- >>> [2..1]
 -- []
--- >>> take 3 [1,2..] :: [Nat]
+-- >>> take 3 [1,2..]
 -- [1,2,3]
--- >>> take 3 [5,4..] :: [Nat]
+-- >>> take 3 [5,4..]
 -- [5,4,3]
--- >>> [1,3..7] :: [Nat]
+-- >>> [1,3..7]
 -- [1,3,5,7]
--- >>> [5,4..1] :: [Nat]
+-- >>> [5,4..1]
 -- [5,4,3,2,1]
--- >>> [5,3..1] :: [Nat]
+-- >>> [5,3..1]
 -- [5,3,1]
-instance Enum Nat where
+instance Enum Peano where
     succ = S
     pred (S n) = n
     pred Z = error "pred called on zero nat"
@@ -211,7 +240,7 @@ instance Enum Nat where
 
 
 $(promoteOnly [d|
-  instance Enum Nat where
+  instance Enum Peano where
       succ = S
       pred (S n) = n
       pred Z = error "pred called on zero nat"
@@ -223,9 +252,9 @@ $(promoteOnly [d|
 
 -- | Errors on zero.
 --
--- >>> 5 `div` 2 :: Nat
+-- >>> 5 `div` 2
 -- 2
-instance Integral Nat where
+instance Integral Peano where
     toInteger = go 0
       where
         go !p Z     = p

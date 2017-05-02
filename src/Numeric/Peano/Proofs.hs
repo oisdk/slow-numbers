@@ -16,7 +16,7 @@ import           Data.Promotion.Prelude
 import           Unsafe.Coerce
 
 -- | Addition is associative.
-plusAssoc :: Sing (x :: Nat) -> p y -> q z -> ((x :+  y) :+ z) :~: (x :+ (y :+ z))
+plusAssoc :: Sing (x :: Peano) -> p y -> q z -> ((x :+  y) :+ z) :~: (x :+ (y :+ z))
 plusAssoc SZ _ _ = Refl
 plusAssoc (SS x) y z = case plusAssoc x y z of
   Refl -> Refl

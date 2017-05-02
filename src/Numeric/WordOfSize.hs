@@ -10,7 +10,16 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
-module Numeric.WordOfSize where
+-- | Arbitrary sized unsigned integers. The number of bits contained
+-- in each type is represented by a type-level natural. Since these
+-- numbers are just newtype wrappers around some word type, they are
+-- quite efficient.
+module Numeric.WordOfSize
+  ( BoundingWord
+  , WordOfSize(..)
+  , KnownSize
+  , allWordsOfSize
+  ) where
 
 import           Data.Word
 import           GHC.TypeLits
@@ -29,6 +38,7 @@ import           Data.Ix
 -- $setup
 -- >>> :set -XDataKinds
 
+-- | For a given size, the smallest type which encapsulates that size.
 type family BoundingWord (n :: Nat) :: * where
     BoundingWord 0  = Word8
     BoundingWord 1  = Word8
@@ -97,11 +107,21 @@ type family BoundingWord (n :: Nat) :: * where
     BoundingWord 64 = Word64
     BoundingWord n = Natural
 
-newtype WordOfSize (n :: Nat) = WordOfSize { getWordOfSize :: BoundingWord n }
+-- | An unsigned integer type with a size decided by a type-level nat. Numeric
+-- operations wraparound by default:
+--
+-- >>> (255 :: WordOfSize 8) + 1
+-- 0
+--
+-- Truncation is avoided everywhere possible, so most operations should be as
+-- fast as those on the underlying representation.
+newtype WordOfSize (n :: Nat) = WordOfSize
+    { getWordOfSize :: BoundingWord n
+    }
 
 type MaxBoundForSize n = (2 ^ n) - 1
 
-type KnownSize n = (KnownNat (MaxBoundForSize n), Integral (BoundingWord n), Bits (BoundingWord n), KnownNat n, Show (BoundingWord n))
+type KnownSize n = (KnownNat ((2 ^ n) - 1), Integral (BoundingWord n), Bits (BoundingWord n), KnownNat n, Show (BoundingWord n))
 
 instance KnownSize n =>
          Bounded (WordOfSize n) where
@@ -113,13 +133,14 @@ type CoerceBinary a b = (a -> a -> a) -> (b -> b -> b)
 trunc
     :: KnownSize n
     => WordOfSize n -> WordOfSize n
-trunc = (coerce :: CoerceBinary (BoundingWord n) (WordOfSize n)) (.&.) maxBound
-
+trunc = convBinary (.&.) maxBound
+{-# INLINE trunc #-}
 
 convBinary
     :: KnownSize n
     => CoerceBinary (BoundingWord n) (WordOfSize n)
-convBinary f x y = trunc (coerce f x y)
+convBinary = coerce
+{-# INLINE convBinary #-}
 
 instance KnownSize n =>
          Num (WordOfSize n) where
@@ -129,36 +150,46 @@ instance KnownSize n =>
     {-# INLINE (*) #-}
     negate = succ . (coerce :: CoerceBinary (BoundingWord n) (WordOfSize n)) xor maxBound
     {-# INLINE negate #-}
-    fromInteger = trunc . WordOfSize . fromInteger
+    fromInteger = trunc . (WordOfSize #. fromInteger)
+    {-# INLINE fromInteger #-}
     abs = id
-    signum (WordOfSize x) = WordOfSize (signum x)
+    {-# INLINE abs #-}
+    signum = (coerce :: (BoundingWord n -> BoundingWord n) -> WordOfSize n -> WordOfSize n) signum
+    {-# INLINE signum #-}
 
 instance KnownSize n =>
          Eq (WordOfSize n) where
-    (==) = (==) `on` getWordOfSize . trunc
+    (==) = (==) `on` getWordOfSize #. trunc
+    {-# INLINE (==) #-}
 
 instance KnownSize n =>
          Show (WordOfSize n) where
-    showsPrec n = showsPrec n . getWordOfSize . trunc
+    showsPrec n = showsPrec n . getWordOfSize #. trunc
 
 instance KnownSize n =>
          Ord (WordOfSize n) where
-    compare = compare `on` getWordOfSize . trunc
+    compare = compare `on` getWordOfSize #. trunc
 
 instance KnownSize n =>
          Real (WordOfSize n) where
-    toRational = toRational . getWordOfSize
+    toRational = toRational . getWordOfSize #. trunc
 
 instance KnownSize n =>
          Enum (WordOfSize n) where
-    fromEnum = fromEnum . getWordOfSize
+    fromEnum = fromEnum . getWordOfSize #. trunc
     toEnum = trunc . WordOfSize . toEnum
     enumFrom x = [x .. maxBound]
 
 instance KnownSize n =>
          Integral (WordOfSize n) where
-    toInteger = toInteger . getWordOfSize . trunc
+    toInteger = toInteger . getWordOfSize #. trunc
+    {-# INLINE toInteger #-}
     quotRem x y = (convBinary quot x y, convBinary rem x y)
+    {-# INLINE quotRem #-}
+    quot = convBinary quot
+    {-# INLINE quot #-}
+    rem = convBinary rem
+    {-# INLINE rem #-}
 
 -- | Generates all words of a given size
 --
@@ -173,3 +204,8 @@ instance NFData (BoundingWord n) => NFData (WordOfSize n) where
     rnf (WordOfSize n) = rnf n
 
 deriving instance (KnownSize n, Ix (BoundingWord n)) => Ix (WordOfSize n)
+
+infixr 9 #.
+(#.) :: Coercible b c => (b -> c) -> (a -> b) -> a -> c
+(#.) _ = coerce
+{-# INLINE (#.) #-}

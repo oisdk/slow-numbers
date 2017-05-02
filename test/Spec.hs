@@ -1,100 +1,67 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RankNTypes   #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 import           Hedgehog
 import qualified Hedgehog.Gen       as Gen
 import qualified Hedgehog.Range     as Range
 import           Test.DocTest
 
-import           Numeric.WordOfSize
-import           Numeric.IntOfSize
-import           Numeric.Decimal
-import           Numeric.Natural
+-- import           Numeric.WordOfSize
+-- import           Numeric.IntOfSize
+import           Numeric.Peano
+import           Numeric.Church
 
-import           Data.Word
-import           Data.Int
+import           Control.Monad
 
-plusSame
-    :: (Integral a, Num b)
-    => (Integer -> a) -> (Integer -> b) -> (b -> Integer) -> Property
-plusSame toBase toTest back = property $ do
-    x <- forAll (Gen.integral (Range.linear (-1000) 1000))
-    y <- forAll (Gen.integral (Range.linear (-1000) 1000))
-    let zb = toBase x + toBase y
-    let zt = toTest x + toTest y
-    toInteger zb === back zt
+binaryProp
+    :: forall a.
+       Integral a
+    => (forall t. Integral t => t -> t -> t)
+    -> Integer
+    -> Integer
+    -> (Integer -> Integer -> Bool)
+    -> Property
+binaryProp op lb ub cond = property $ do
+    x <- forAll (Gen.integral (Range.linear lb ub))
+    y <- forAll (Gen.integral (Range.linear lb ub))
+    guard (cond x y)
+    let zb = op x y
+    let zt = op (fromInteger @a x) (fromInteger y)
+    zb === toInteger zt
 
-subSameNat
-    :: (Integral a, Num b)
-    => (Integer -> a) -> (Integer -> b) -> (b -> Integer) -> Property
-subSameNat toBase toTest back = property $ do
-    x' <- forAll (Gen.integral (Range.linear 0 1000))
-    y' <- forAll (Gen.integral (Range.linear 0 1000))
-    let x = max x' y'
-    let y = min x' y'
-    let zb = toBase x - toBase y
-    let zt = toTest x - toTest y
-    toInteger zb === back zt
+prop_PeanoAdd :: Property
+prop_PeanoAdd = binaryProp @Peano (+) 0 1000 (\_ _ -> True)
 
-multSame
-    :: (Integral a, Num b)
-    => (Integer -> a) -> (Integer -> b) -> (b -> Integer) -> Property
-multSame toBase toTest back = property $ do
-    x <- forAll (Gen.integral (Range.linear (-1000) 1000))
-    y <- forAll (Gen.integral (Range.linear (-1000) 1000))
-    let zb = toBase x * toBase y
-    let zt = toTest x * toTest y
-    toInteger zb === back zt
+prop_PeanoMul :: Property
+prop_PeanoMul = binaryProp @Peano (*) 0 1000 (\_ _ -> True)
 
-prop_WordPlusSame :: Property
-prop_WordPlusSame =
-    plusSame
-        ((fromInteger @ Word8) . abs)
-        ((fromInteger @ (WordOfSize 8)) . abs)
-        toInteger
+prop_PeanoSub :: Property
+prop_PeanoSub = withDiscards 1000 $ binaryProp @Peano (-) 0 1000 (>=)
 
-prop_IntPlusSame :: Property
-prop_IntPlusSame =
-    plusSame
-        (fromInteger @ Int8)
-        (fromInteger @ (IntOfSize 8))
-        toInteger
+prop_PeanoRem :: Property
+prop_PeanoRem = binaryProp @Peano rem 1 1000 (\_ _ -> True)
 
-prop_DecimalPlusSame :: Property
-prop_DecimalPlusSame =
-    plusSame
-        (fromInteger @ Natural . abs)
-        (fromInteger @ Nat . abs)
-        (foldr (\e a -> toInteger (fromEnum e) + 10 * a) 0 . getNat)
+prop_PeanoQuot :: Property
+prop_PeanoQuot = binaryProp @Peano quot 1 1000 (\_ _ -> True)
 
-prop_WordMultSame :: Property
-prop_WordMultSame =
-    multSame
-        ((fromInteger @ Word8) . abs)
-        ((fromInteger @ (WordOfSize 8)) . abs)
-        toInteger
+prop_ChurchAdd :: Property
+prop_ChurchAdd = binaryProp @Church (+) 0 1000 (\_ _ -> True)
 
-prop_IntMultSame :: Property
-prop_IntMultSame =
-    multSame
-        (fromInteger @ Int8)
-        (fromInteger @ (IntOfSize 8))
-        toInteger
+prop_ChurchMul :: Property
+prop_ChurchMul = binaryProp @Church (*) 0 1000 (\_ _ -> True)
 
-prop_DecimalMultSame :: Property
-prop_DecimalMultSame =
-    multSame
-        (fromInteger @ Natural . abs)
-        (fromInteger @ Nat . abs)
-        (foldr (\e a -> toInteger (fromEnum e) + 10 * a) 0 . getNat)
+prop_ChurchSub :: Property
+prop_ChurchSub = withDiscards 1000 $ binaryProp @Church (-) 0 1000 (>=)
 
-prop_DecimalSubSame :: Property
-prop_DecimalSubSame =
-    subSameNat
-        (fromInteger @ Natural . abs)
-        (fromInteger @ Nat . abs)
-        (foldr (\e a -> toInteger (fromEnum e) + 10 * a) 0 . getNat)
+prop_ChurchRem :: Property
+prop_ChurchRem = binaryProp @Church rem 1 1000 (\_ _ -> True)
+
+prop_ChurchQuot :: Property
+prop_ChurchQuot = binaryProp @Church quot 1 1000 (\_ _ -> True)
 
 main :: IO Bool
 main = do

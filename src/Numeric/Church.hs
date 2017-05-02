@@ -1,81 +1,113 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Numeric.Church where
+-- | Basic church numerals. These are even less efficient than
+-- "Numeric.Peano", and no more lazy.
+module Numeric.Church
+  (Church(..))
+  where
 
 import Data.Function (fix)
 
--- | Church numerals.
-newtype Nat = Nat { runNat :: forall a. (a -> a) -> a -> a }
+-- $setup
+-- >>> import Test.QuickCheck
+-- >>> default (Church)
+-- >>> :{
+-- instance Arbitrary Church where
+--     arbitrary = fmap (fromInteger . getNonNegative) arbitrary
+-- :}
 
-instance Eq Nat where
+-- | Church numerals.
+newtype Church = Church { runChurch :: forall a. (a -> a) -> a -> a }
+
+-- | Quite lazy
+--
+-- >>> 4 == maxBound
+-- False
+-- >>> maxBound == 4
+-- False
+--
+-- prop> n === (n :: Church)
+instance Eq Church where
     (==) n =
-        runNat
+        runChurch
             n
             (\c m ->
-                  runNat m (const (c (pred m))) False)
-            (\(Nat nn) ->
+                  runChurch m (const (c (pred m))) False)
+            (\(Church nn) ->
                   nn (const False) True)
 
-instance Ord Nat where
+-- | Fully lazy
+--
+-- prop> n < (maxBound :: Church)
+instance Ord Church where
     (<=) = flip (>=)
-    (>=) (Nat n) =
+    (>=) (Church n) =
         n
             (\c m ->
-                  runNat m (const (c (pred m))) True)
-            (\(Nat m) ->
+                  runChurch m (const (c (pred m))) True)
+            (\(Church m) ->
                   m (const False) True)
 
-instance Num Nat where
+-- | Laziness is maintained
+--
+-- prop> n + maxBound > (n :: Church)
+--
+-- Subtraction stops at zero
+--
+-- >>> 5 - 6
+-- 0
+--
+-- prop> n >= m ==> m - n === (0 :: Church)
+instance Num Church where
     abs = id
-    signum (Nat n) = n (const 1) 0
-    fromInteger n = Nat (go (abs n))
+    signum (Church n) = n (const 1) 0
+    fromInteger n = Church (go (abs n))
       where
         go 0 _ = id
         go m f = f . go (m - 1) f
-    Nat n + Nat m =
-        Nat
-            (\f ->
-                  n f . m f)
-    Nat n * Nat m = Nat (n . m)
-    n - Nat m = m pred n
+    Church n + Church m =
+        Church (\f -> n f . m f)
+    Church n * Church m = Church (n . m)
+    n - Church m = m pred n
 
-instance Enum Nat where
-    fromEnum (Nat n) = n succ 0
-    toEnum n = Nat (go (abs n)) where
+instance Enum Church where
+    fromEnum (Church n) = n succ 0
+    toEnum n = Church (go (abs n)) where
       go 0 _ = id
       go m f = f . go (m-1) f
-    pred (Nat n) = Nat (\f x -> n (\g h -> h (g f)) (const x) id)
-    succ (Nat n) = Nat (\f -> f . n f)
+    pred (Church n) = Church (\f x -> n (\g h -> h (g f)) (const x) id)
+    {-# INLINE pred #-}
+    succ (Church n) = Church (\f -> f . n f)
 
-instance Real Nat where
+instance Real Church where
     toRational = toRational . toInteger
 
-isZero :: Nat -> a -> a -> a
-isZero (Nat n) t f = n (const f) t
+isZero :: Church -> a -> a -> a
+isZero (Church n) t f = n (const f) t
 
-divide1 :: Nat -> Nat -> Nat
+divide1 :: Church -> Church -> Church
 divide1 n m =
-    Nat
+    Church
         (\f x ->
-              (\d -> isZero d x (f (runNat (divide1 d m) f x))) (n - m))
+              (\d -> isZero d x (f (runChurch (divide1 d m) f x))) (n - m))
 
-rem1 :: Nat -> Nat -> Nat
+rem1 :: Church -> Church -> Church
 rem1 n m = let d = n - m in case compare d 1 of
   LT -> n
   EQ -> 0
   GT -> rem1 d m
 
-instance Integral Nat where
+instance Integral Church where
     div = divide1 . succ
-    toInteger (Nat n) = n succ 0
+    toInteger (Church n) = n succ 0
     quot = divide1 . succ
     rem n = pred . rem1 (succ n)
     quotRem n m = (quot n m, rem n m)
 
-instance Show Nat where
+instance Show Church where
     showsPrec n = showsPrec n . toInteger
 
-instance Bounded Nat where
+instance Bounded Church where
     minBound = 0
-    maxBound = Nat (const . fix)
+    maxBound = Church (const . fix)
