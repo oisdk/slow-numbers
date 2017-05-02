@@ -18,7 +18,6 @@ library
                      , Numeric.Church
                      , Numeric.WordOfSize
                      , Numeric.IntOfSize
-                     , Numeric.Decimal
   build-depends:       base >= 4.7 && < 5
                      , singletons >= 2
                      , deepseq >= 1.4

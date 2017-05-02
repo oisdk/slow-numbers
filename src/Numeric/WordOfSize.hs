@@ -29,7 +29,6 @@ import           Data.Ix
 -- $setup
 -- >>> :set -XDataKinds
 
-
 type family BoundingWord (n :: Nat) :: * where
     BoundingWord 0  = Word8
     BoundingWord 1  = Word8
@@ -111,40 +110,16 @@ instance KnownSize n =>
 
 type CoerceBinary a b = (a -> a -> a) -> (b -> b -> b)
 
-instance KnownSize n =>
-         Bits (WordOfSize n) where
-    (.&.) = (coerce :: CoerceBinary (BoundingWord n) (WordOfSize n)) (.&.)
-    (.|.) = (coerce :: CoerceBinary (BoundingWord n) (WordOfSize n)) (.|.)
-    xor = trunc .: (coerce :: CoerceBinary (BoundingWord n) (WordOfSize n)) xor
-    complement =
-        trunc . (coerce :: (BoundingWord n -> BoundingWord n) -> WordOfSize n -> WordOfSize n) complement
-    shift =
-        trunc .:
-        (coerce :: (BoundingWord n -> Int -> BoundingWord n) -> WordOfSize n -> Int -> WordOfSize n)
-            shift
-    rotate =
-        trunc .:
-        (coerce :: (BoundingWord n -> Int -> BoundingWord n) -> WordOfSize n -> Int -> WordOfSize n)
-            rotate
-    bit = trunc . WordOfSize . bit
-    bitSize = fromInteger . natVal
-    bitSizeMaybe = Just . fromInteger . natVal
-    isSigned _ = False
-    testBit =
-        (coerce :: (BoundingWord n -> Int -> Bool) -> WordOfSize n -> Int -> Bool)
-            testBit
-    popCount =
-        (coerce :: (BoundingWord n -> Int) -> WordOfSize n -> Int) popCount
-
 trunc
     :: KnownSize n
     => WordOfSize n -> WordOfSize n
-trunc = (.&.) maxBound
+trunc = (coerce :: CoerceBinary (BoundingWord n) (WordOfSize n)) (.&.) maxBound
+
 
 convBinary
     :: KnownSize n
     => CoerceBinary (BoundingWord n) (WordOfSize n)
-convBinary f = trunc .: coerce f
+convBinary f x y = trunc (coerce f x y)
 
 instance KnownSize n =>
          Num (WordOfSize n) where
@@ -152,9 +127,9 @@ instance KnownSize n =>
     {-# INLINE (+) #-}
     (*) = convBinary (*)
     {-# INLINE (*) #-}
-    negate y = (maxBound `xor` y) + 1
+    negate = succ . (coerce :: CoerceBinary (BoundingWord n) (WordOfSize n)) xor maxBound
     {-# INLINE negate #-}
-    fromInteger = trunc . WordOfSize . fromInteger . abs
+    fromInteger = trunc . WordOfSize . fromInteger
     abs = id
     signum (WordOfSize x) = WordOfSize (signum x)
 
@@ -184,13 +159,6 @@ instance KnownSize n =>
          Integral (WordOfSize n) where
     toInteger = toInteger . getWordOfSize . trunc
     quotRem x y = (convBinary quot x y, convBinary rem x y)
-
-(.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
-(.:) = (.) . (.)
-
-instance KnownSize n =>
-         FiniteBits (WordOfSize n) where
-    finiteBitSize = fromInteger . natVal
 
 -- | Generates all words of a given size
 --

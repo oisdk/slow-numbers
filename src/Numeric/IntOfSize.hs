@@ -108,48 +108,31 @@ instance KnownSize n =>
 
 type CoerceBinary a b = (a -> a -> a) -> (b -> b -> b)
 
-instance KnownSize n =>
-         Bits (IntOfSize n) where
-    (.&.) = (coerce :: CoerceBinary (BoundingInt n) (IntOfSize n)) (.&.)
-    (.|.) = (coerce :: CoerceBinary (BoundingInt n) (IntOfSize n)) (.|.)
-    xor = trunc .: (coerce :: CoerceBinary (BoundingInt n) (IntOfSize n)) xor
-    complement =
-        trunc . (coerce :: (BoundingInt n -> BoundingInt n) -> IntOfSize n -> IntOfSize n) complement
-    shift =
-        trunc .:
-        (coerce :: (BoundingInt n -> Int -> BoundingInt n) -> IntOfSize n -> Int -> IntOfSize n)
-            shift
-    rotate =
-        trunc .:
-        (coerce :: (BoundingInt n -> Int -> BoundingInt n) -> IntOfSize n -> Int -> IntOfSize n)
-            rotate
-    bit = trunc . IntOfSize . bit
-    bitSize = fromInteger . natVal
-    bitSizeMaybe = Just . fromInteger . natVal
-    isSigned _ = True
-    testBit =
-        (coerce :: (BoundingInt n -> Int -> Bool) -> IntOfSize n -> Int -> Bool)
-            testBit
-    popCount =
-        (coerce :: (BoundingInt n -> Int) -> IntOfSize n -> Int) popCount
-
 trunc
     :: KnownSize n
     => IntOfSize n -> IntOfSize n
 trunc x
-  | testBit x (fromInteger (natVal x) - 1) = x .|. minBound
-  | otherwise = x .&. maxBound
+  | testBit' x (fromInteger (natVal x) - 1) = x .|.. minBound
+  | otherwise = x .&.. maxBound
+  where
+    (.&..) = (coerce :: CoerceBinary (BoundingInt n) (IntOfSize n)) (.&.)
+    (.|..) = (coerce :: CoerceBinary (BoundingInt n) (IntOfSize n)) (.|.)
+    testBit' =
+        (coerce :: (BoundingInt n -> Int -> Bool) -> IntOfSize n -> Int -> Bool)
+            testBit
 
 convBinary
     :: KnownSize n
     => CoerceBinary (BoundingInt n) (IntOfSize n)
-convBinary f = trunc .: coerce f
+convBinary f x y = trunc (coerce f x y)
 
 instance KnownSize n =>
          Num (IntOfSize n) where
     (+) = convBinary (+)
     (*) = convBinary (*)
-    negate y = complement y + 1
+    negate y = complement' y + 1 where
+      complement' =
+          trunc . (coerce :: (BoundingInt n -> BoundingInt n) -> IntOfSize n -> IntOfSize n) complement
     fromInteger = trunc . IntOfSize . fromInteger
     abs = id
     signum (IntOfSize x) = IntOfSize (signum x)
@@ -176,13 +159,6 @@ instance KnownSize n =>
          Integral (IntOfSize n) where
     toInteger = toInteger . getIntOfSize
     quotRem x y = (convBinary quot x y, convBinary rem x y)
-
-(.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
-(.:) = (.) . (.)
-
-instance KnownSize n =>
-         FiniteBits (IntOfSize n) where
-    finiteBitSize = fromInteger . natVal
 
 -- | Generate all values, in a sensible order
 --

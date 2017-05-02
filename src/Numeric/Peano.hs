@@ -23,6 +23,8 @@ import           Data.Promotion.Prelude.Enum
 import           Data.Promotion.TH
 import           Data.Singletons.TH
 
+import           Numeric.Natural
+
 -- $setup
 -- >>> import Test.QuickCheck
 -- >>> :{
@@ -63,12 +65,8 @@ instance Ord Nat where
     Z > _ = False
     S n > S m = n > m
     S _ > Z = True
-    _ >= Z = True
-    Z >= S _ = False
-    S n >= S m = n >= m
-    _ < Z = False
-    S n < S m = n < m
-    Z < S _ = True
+    (>=) = flip (<=)
+    (<) = flip (>)
 
 -- | Subtraction stops at zero.
 --
@@ -143,7 +141,7 @@ instance Show Nat where
 -- | Reads the integer representation.
 instance Read Nat where
     readsPrec d r =
-        [ (fromInteger n, xs)
+        [ (fromIntegral (n :: Natural), xs)
         | (n,xs) <- readsPrec d r ]
 
 -- | Will obviously diverge for values like `maxBound`.
@@ -240,9 +238,18 @@ instance Integral Nat where
             go nn Z          = qr (S q) nn m
             go (S nn) (S mm) = go nn mm
             go Z (S _)       = (q, n)
-    div _ Z = error "divide by zero"
-    div n m = go n where
+    quot _ Z = error "divide by zero"
+    quot n m = go n where
       go = subt m where
         subt Z nn          = S (go nn)
         subt (S mm) (S nn) = subt mm nn
         subt (S _) Z       = Z
+    rem _ Z = error "divide by zero"
+    rem nn mm = r nn mm where
+      r n m = go n m where
+        go nnn Z = r nnn m
+        go (S nnn) (S mmm) = go nnn mmm
+        go Z (S _) = n
+    div = quot
+    mod = rem
+    divMod = quotRem
