@@ -58,15 +58,19 @@ divide1 :: Nat -> Nat -> Nat
 divide1 n m =
     Nat
         (\f x ->
-              (\d ->
-                    isZero d x (f (runNat (divide1 d m) f x)))
-                  (n - m))
+              (\d -> isZero d x (f (runNat (divide1 d m) f x))) (n - m))
+
+rem1 :: Nat -> Nat -> Nat
+rem1 n m = let d = n - m in case compare d 1 of
+  LT -> n
+  EQ -> 0
+  GT -> rem1 d m
 
 instance Integral Nat where
     div = divide1 . succ
     toInteger (Nat n) = n succ 0
     quot = divide1 . succ
-    rem n m = let d = n - m in isZero d (if n == m then 0 else n) (rem d m)
+    rem n = pred . rem1 (succ n)
     quotRem n m = (quot n m, rem n m)
 
 instance Show Nat where
