@@ -179,6 +179,9 @@ instance KnownSize n =>
     fromEnum = fromEnum . getWordOfSize #. trunc
     toEnum = trunc . WordOfSize . toEnum
     enumFrom x = [x .. maxBound]
+    enumFromThen x y
+        | x < y = [x,y..maxBound]
+        | otherwise = [x,y..minBound]
 
 instance KnownSize n =>
          Integral (WordOfSize n) where

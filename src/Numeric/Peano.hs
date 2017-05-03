@@ -34,7 +34,7 @@
 -- Using @'Data.List.genericLength'@, on the other hand, the laziness of
 -- @'Peano'@ will indeed short-circuit:
 --
--- >>> 'Data.List.genericLength' [1,2,3] == 'Data.List.genericLength' [1..]
+-- >>> genericLength [1,2,3] == genericLength [1..]
 -- False
 module Numeric.Peano where
 

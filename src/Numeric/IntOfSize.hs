@@ -10,7 +10,12 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
-module Numeric.IntOfSize where
+module Numeric.IntOfSize
+  (BoundingInt
+  ,IntOfSize(..)
+  ,KnownSize
+  ,allIntsOfSize)
+  where
 
 import           GHC.TypeLits
 
@@ -26,6 +31,8 @@ import           Data.Ix
 -- $setup
 -- >>> :set -XDataKinds
 
+-- | The minimum size int type that will properly encapsulate an int
+-- of a given size.
 type family BoundingInt (n :: Nat) :: * where
     BoundingInt 0  = Int8
     BoundingInt 1  = Int8
@@ -99,7 +106,7 @@ newtype IntOfSize (n :: Nat) = IntOfSize
 
 type MaxBoundForSize n = (2 ^ (n - 1)) - 1
 
-type KnownSize n = (KnownNat (MaxBoundForSize n), Integral (BoundingInt n), Bits (BoundingInt n), KnownNat n, Show (BoundingInt n))
+type KnownSize n = (KnownNat ((2 ^ (n - 1)) - 1), Integral (BoundingInt n), Bits (BoundingInt n), KnownNat n, Show (BoundingInt n))
 
 instance KnownSize n =>
          Bounded (IntOfSize n) where
@@ -154,11 +161,18 @@ instance KnownSize n =>
     fromEnum = fromEnum . getIntOfSize
     toEnum = trunc . IntOfSize . toEnum
     enumFrom x = [x .. maxBound]
+    enumFromThen x y
+        | x < y = [x,y..maxBound]
+        | otherwise = [x,y..minBound]
 
 instance KnownSize n =>
          Integral (IntOfSize n) where
     toInteger = toInteger . getIntOfSize
     quotRem x y = (convBinary quot x y, convBinary rem x y)
+    quot = convBinary quot
+    rem = convBinary rem
+    div = convBinary div
+    mod = convBinary mod
 
 -- | Generate all values, in a sensible order
 --

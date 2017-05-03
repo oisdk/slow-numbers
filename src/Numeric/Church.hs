@@ -79,6 +79,7 @@ instance Enum Church where
     pred (Church n) = Church (\f x -> n (\g h -> h (g f)) (const x) id)
     {-# INLINE pred #-}
     succ (Church n) = Church (\f -> f . n f)
+    enumFrom = iterate succ
 
 instance Real Church where
     toRational = toRational . toInteger
