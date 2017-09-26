@@ -35,9 +35,8 @@ plusSuccDistrib SZ _     = Refl
 plusSuccDistrib (SS n) p = gcastWith (plusSuccDistrib n p) Refl
 {-# NOINLINE plusSuccDistrib #-}
 
-
 {-# RULES
-"plusAssoc" forall x y z. plusAssoc x y z = unsafeCoerce (Refl :: 'Z :~: 'Z)
-"plusZeroNeutral" forall x. plusZeroNeutral x = unsafeCoerce (Refl :: 'Z :~: 'Z)
-"plusSuccDistrib" forall x y. plusSuccDistrib x y = unsafeCoerce (Refl :: 'Z :~: 'Z)
+"plusAssoc" forall x y z. plusAssoc x y z = unsafeCoerce (Refl :: Z :~: Z)
+"plusZeroNeutral" forall x. plusZeroNeutral x = unsafeCoerce (Refl :: Z :~: Z)
+"plusSuccDistrib" forall x y. plusSuccDistrib x y = unsafeCoerce (Refl :: Z :~: Z)
  #-}

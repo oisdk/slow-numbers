@@ -18,6 +18,7 @@ import           Numeric.Church
 import           Control.Monad
 
 import           Data.Data
+import           Data.Ix
 
 binaryProp
     :: forall a.
@@ -245,6 +246,21 @@ prop_Int3Enum =
         (inBounds (-4) 3)
         (Gen.integral (Range.linear (-4) 3))
         (Gen.integral (Range.linear @(IntOfSize 3) (-4) 3))
+
+prop_PeanoInRange :: Property
+prop_PeanoInRange = property $ do
+    l <- forAll (Gen.integral (Range.linear Z 100))
+    u <- forAll (Gen.integral (Range.linear l (l+100)))
+    i <- forAll (Gen.integral (Range.linear 0 300))
+    inRange (l,u) i === (l <= i &&  i <= u)
+
+prop_PeanoIndex :: Property
+prop_PeanoIndex = property $ do
+    l <- forAll (Gen.integral (Range.linear Z 100))
+    u <- forAll (Gen.integral (Range.linear l (l+100)))
+    i <- forAll (Gen.integral (Range.linear l u))
+    unless (inRange (l,u) i) discard
+    index (l,u) i === fromEnum (i - l)
 
 main :: IO Bool
 main = do

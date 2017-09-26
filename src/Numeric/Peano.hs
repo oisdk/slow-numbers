@@ -52,6 +52,8 @@ import           Data.Singletons.TH
 
 import           Numeric.Natural
 
+import           Data.Ix
+
 -- $setup
 -- >>> import Test.QuickCheck
 -- >>> import Data.List (genericLength)
@@ -108,8 +110,11 @@ instance Num Peano where
     abs = id
     signum Z = 0
     signum _ = 1
-    fromInteger 0 = Z
-    fromInteger n = S (fromInteger (n-1))
+    fromInteger n
+        | n < 0 = error "cannot convert negative integers to Peano numbers"
+        | otherwise = go n where
+            go 0 = Z
+            go m = S (go (m-1))
     S n - S m = n - m
     n - _ = n
 
@@ -209,10 +214,13 @@ instance Enum Peano where
       where
         go !n Z = n
         go !n (S m) = go (1 + n) m
-    toEnum = go . abs
+    toEnum = go . check
       where
+        check n
+          | n < 0 = error "cannot convert negative number to Peano"
+          | otherwise = n
         go 0 = Z
-        go n = S (go (n-1))
+        go n = S (go (n - 1))
     enumFrom = iterate S
     enumFromTo n m = unfoldr f (n, S m - n)
       where
@@ -225,18 +233,16 @@ instance Enum Peano where
         ts nn Z = subtract nn
         t = ts n m
     enumFromThenTo n m t =
-        unfoldr
-            f
-            (n,either (const (S n - t)) (const (S t - n)) tt)
+        unfoldr f (n, if lr then S t - n else S n - t)
       where
-        ts Z mm = Right mm
+        ts Z mm = (True, mm)
         ts (S nn) (S mm) = ts nn mm
-        ts nn Z = Left nn
-        tt = ts n m
-        tf = either subtract (+) tt
-        td = either subtract subtract tt
+        ts nn Z = (False, nn)
+        (lr,tt) = ts n m
+        tf = (if lr then (+) else subtract) tt
+        td = subtract tt
         f (_,Z) = Nothing
-        f (e,l@(S _)) = Just (e, (tf e,td l))
+        f (e,l@(S _)) = Just (e, (tf e, td l))
 
 
 $(promoteOnly [d|
@@ -282,3 +288,19 @@ instance Integral Peano where
     div = quot
     mod = rem
     divMod = quotRem
+
+instance Ix Peano where
+    range = uncurry enumFromTo
+    inRange = uncurry go where
+      go (S _) _ Z = False
+      go Z y x = x <= y
+      go (S x) (S y) (S z) = go x y z
+      go (S _) Z (S _) = False
+    index = uncurry go where
+      go Z h i = lim 0 h i
+      go (S _) _ Z = error "out of range"
+      go (S l) (S h) (S i) = go l h i
+      go (S _) Z (S _) = error "out of range"
+      lim _ Z (S _) = error "out of range"
+      lim !a (S n) (S m) = lim (a + 1) n m
+      lim !a _ Z = a
