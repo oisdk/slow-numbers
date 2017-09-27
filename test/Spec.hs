@@ -10,8 +10,6 @@ import qualified Hedgehog.Gen       as Gen
 import qualified Hedgehog.Range     as Range
 import           Test.DocTest
 
-import           Numeric.WordOfSize
-import           Numeric.IntOfSize
 import           Numeric.Peano
 import           Numeric.Church
 
@@ -177,75 +175,6 @@ prop_ChurchEnum =
         (>= 0)
         (Gen.integral (Range.linear 0 50))
         (Gen.integral (Range.linear @Church 0 50))
-
-prop_Word3Add :: Property
-prop_Word3Add = binaryProp @(WordOfSize 3) (+) 0 7 (\x y -> x + y <= 7)
-
-prop_Word3Mul :: Property
-prop_Word3Mul = binaryProp @(WordOfSize 3) (*) 0 7 (\x y -> x * y <= 7)
-
-prop_Word3Sub :: Property
-prop_Word3Sub = withDiscards 1000 $ binaryProp @(WordOfSize 3) (-) 0 7 (>=)
-
-prop_Word3Rem :: Property
-prop_Word3Rem = binaryProp @(WordOfSize 3) rem 0 7 (\_ y -> y > 0)
-
-prop_Word3Quot :: Property
-prop_Word3Quot = binaryProp @(WordOfSize 3) quot 0 7 (\_ y -> y > 0)
-
-prop_Word3Ord :: Property
-prop_Word3Ord = ordProps (Gen.integral (Range.linear @(WordOfSize 3) 0 7))
-
-prop_Word3Enum :: Property
-prop_Word3Enum =
-    enumProps
-        (inBounds 0 7)
-        (Gen.integral (Range.linear 0 7))
-        (Gen.integral (Range.linear @(WordOfSize 3) 0 7))
-
-inBounds :: Ord a => a -> a -> a -> Bool
-inBounds lb ub x = x >= lb && x <= ub
-
-prop_Int3Add :: Property
-prop_Int3Add =
-    withDiscards 1000 $
-    binaryProp
-        @(IntOfSize 3)
-        (+)
-        (-4)
-        3
-        (\x y ->
-              inBounds (-4) 3 (x + y))
-
-prop_Int3Mul :: Property
-prop_Int3Mul =
-    withDiscards 1000 $
-    binaryProp
-        @(IntOfSize 3)
-        (*)
-        (-4)
-        3
-        (\x y ->
-              inBounds (-4) 3 (x * y))
-
-prop_Int3Sub :: Property
-prop_Int3Sub = binaryProp @(IntOfSize 3) (-) (-4) 3 (\x y -> inBounds (-4) 3 (x - y))
-
-prop_Int3Rem :: Property
-prop_Int3Rem = binaryProp @(IntOfSize 3) rem (-4) 3 (\_ y -> y /= 0)
-
-prop_Int3Quot :: Property
-prop_Int3Quot = binaryProp @(IntOfSize 3) quot (-4) 3 (\x y -> y /= 0 && inBounds (-4) 3 (quot x y))
-
-prop_Int3Ord :: Property
-prop_Int3Ord = ordProps (Gen.integral (Range.linear @(IntOfSize 3) (-3) 4))
-
-prop_Int3Enum :: Property
-prop_Int3Enum =
-    enumProps
-        (inBounds (-4) 3)
-        (Gen.integral (Range.linear (-4) 3))
-        (Gen.integral (Range.linear @(IntOfSize 3) (-4) 3))
 
 prop_PeanoInRange :: Property
 prop_PeanoInRange = property $ do

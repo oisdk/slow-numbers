@@ -54,6 +54,8 @@ import           Numeric.Natural
 
 import           Data.Ix
 
+import           Data.Function
+
 -- $setup
 -- >>> import Test.QuickCheck
 -- >>> import Data.List (genericLength)
@@ -123,7 +125,7 @@ instance Num Peano where
 -- prop> maxBound > (n :: Peano)
 instance Bounded Peano where
     minBound = Z
-    maxBound = S maxBound
+    maxBound = fix S
 
 $(promoteOnly [d|
   instance Ord Peano where
@@ -235,8 +237,8 @@ instance Enum Peano where
     enumFromThenTo n m t =
         unfoldr f (n, if lr then S t - n else S n - t)
       where
-        ts Z mm = (True, mm)
         ts (S nn) (S mm) = ts nn mm
+        ts Z mm = (True, mm)
         ts nn Z = (False, nn)
         (lr,tt) = ts n m
         tf = (if lr then (+) else subtract) tt
