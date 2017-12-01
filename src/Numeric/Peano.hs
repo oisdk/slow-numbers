@@ -86,12 +86,6 @@ instance Ord Peano where
     compare (S n) (S m) = compare n m
     compare Z (S _)     = LT
     compare (S _) Z     = GT
-    min Z _         = Z
-    min (S n) (S m) = S (min n m)
-    min _ Z         = Z
-    max Z m         = m
-    max (S n) (S m) = S (max n m)
-    max n Z         = n
     Z <= _ = True
     S n <= S m = n <= m
     S _ <= Z = False

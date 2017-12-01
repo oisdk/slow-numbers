@@ -39,15 +39,32 @@ instance Eq Church where
 
 -- | Fully lazy
 --
+-- >>> compare 2 2
+-- EQ
+--
+-- >>> compare 2 1
+-- GT
+--
+-- >>> compare 1 2
+-- LT
+--
 -- prop> n < (maxBound :: Church)
 instance Ord Church where
     (<=) = flip (>=)
-    (>=) (Church n) =
-        n
+    (>=) n =
+        runChurch
+            n
             (\c m ->
                   runChurch m (const (c (pred m))) True)
             (\(Church m) ->
                   m (const False) True)
+    compare n =
+        runChurch
+            n
+            (\c m ->
+                  runChurch m (const (c (pred m))) GT)
+            (\(Church m) ->
+                  m (const LT) EQ)
 
 -- | Laziness is maintained
 --
@@ -94,10 +111,12 @@ divide1 n m =
               (\d -> isZero d x (f (runChurch (divide1 d m) f x))) (n - m))
 
 rem1 :: Church -> Church -> Church
-rem1 n m = let d = n - m in case compare d 1 of
-  LT -> n
-  EQ -> 0
-  GT -> rem1 d m
+rem1 n m =
+    let d = n - m
+    in case compare d 1 of
+           LT -> n
+           EQ -> 0
+           GT -> rem1 d m
 
 instance Integral Church where
     div = divide1 . succ
