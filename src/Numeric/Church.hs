@@ -101,29 +101,33 @@ instance Enum Church where
 instance Real Church where
     toRational = toRational . toInteger
 
-isZero :: Church -> a -> a -> a
-isZero (Church n) t f = n (const f) t
-
-divide1 :: Church -> Church -> Church
-divide1 n m =
-    Church
-        (\f x ->
-              (\d -> isZero d x (f (runChurch (divide1 d m) f x))) (n - m))
-
-rem1 :: Church -> Church -> Church
-rem1 n m =
+quotRem1 :: Church -> Church -> (Church -> Church -> a) -> a
+quotRem1 n m k =
     let d = n - m
-    in case compare d 1 of
-           LT -> n
-           EQ -> 0
-           GT -> rem1 d m
+    in cmp1 d
+      (k 0 n)
+      (k 1 0)
+      (quotRem1 d m (k . succ))
+
+newtype MB = MB
+    { runMB :: forall b. ((b -> b -> b) -> b) -> b -> b
+    }
+
+cmp1 :: Church -> a -> a -> a -> a
+cmp1 c l e g =
+    runMB
+        (runChurch c (\x -> MB (f (runMB x))) (MB (const id)))
+        (\bb ->
+              bb g e) l
+  where
+    f x k _ = k (x . const)
+
 
 instance Integral Church where
-    div = divide1 . succ
     toInteger (Church n) = n succ 0
-    quot = divide1 . succ
-    rem n = pred . rem1 (succ n)
-    quotRem n m = (quot n m, rem n m)
+    quot n m = quotRem1 (succ n) m const
+    rem n m = quotRem1 (succ n) m (const pred)
+    quotRem n m = quotRem1 (succ n) m (\n' m' -> (n', pred m'))
 
 instance Show Church where
     showsPrec n = showsPrec n . toInteger
