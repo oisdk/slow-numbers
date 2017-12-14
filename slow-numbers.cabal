@@ -16,6 +16,8 @@ library
   hs-source-dirs:      src
   exposed-modules:     Numeric.Peano
                      , Numeric.Church
+                     , Numeric.Scott
+  other-modules:       Numeric.Church.Prelude
   build-depends:       base >= 4.7 && < 5
                      , singletons >= 2
                      , deepseq >= 1.4

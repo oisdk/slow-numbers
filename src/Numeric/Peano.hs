@@ -181,7 +181,7 @@ instance NFData Peano where
 
 -- | Reasonably expensive.
 instance Real Peano where
-    toRational = fromInteger . toInteger
+    toRational = toRational . toInteger
 
 -- | Uses custom 'enumFrom', 'enumFromThen', 'enumFromThenTo' to avoid
 -- expensive conversions to and from 'Int'.

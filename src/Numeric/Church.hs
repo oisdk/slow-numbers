@@ -1,13 +1,19 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Basic church numerals. These are even less efficient than
 -- "Numeric.Peano", and no more lazy.
 module Numeric.Church
-  (Church(..))
+  (Church(..)
+  ,runChurch')
   where
 
-import Data.Function (fix)
+import           Data.Function (fix)
+import           Numeric.Natural
+import           Text.Read
+import           Numeric.Church.Prelude
+import           GHC.Base (build)
 
 -- $setup
 -- >>> import Test.QuickCheck
@@ -18,7 +24,13 @@ import Data.Function (fix)
 -- :}
 
 -- | Church numerals.
-newtype Church = Church { runChurch :: forall a. (a -> a) -> a -> a }
+newtype Church = Church
+    { runChurch :: forall a. (a -> a) -> a -> a
+    }
+
+-- | Run a church numeral, strictly.
+runChurch' :: Church -> (a -> a) -> a -> a
+runChurch' n f = runChurch n (\a !i -> a (f i)) id
 
 -- | Quite lazy
 --
@@ -29,13 +41,25 @@ newtype Church = Church { runChurch :: forall a. (a -> a) -> a -> a }
 --
 -- prop> n === (n :: Church)
 instance Eq Church where
-    (==) n =
+    (==) = cmpC False True False
+
+cmpC :: a -> a -> a -> Church -> Church -> a
+cmpC l e g = go
+  where
+    go n =
         runChurch
             n
             (\c m ->
-                  runChurch m (const (c (pred m))) False)
-            (\(Church nn) ->
-                  nn (const False) True)
+                  runChurch m (const (c (pred m))) g)
+            (\(Church m) ->
+                  m (const l) e)
+
+cmpSub :: (Church -> a) -> (Church -> a) -> a -> Church -> Church -> a
+cmpSub l g e n m =
+    runChurch ntm (const (g ntm)) (runChurch mtn (const (l mtn)) e)
+  where
+    ntm = n - m
+    mtn = m - n
 
 -- | Fully lazy
 --
@@ -48,23 +72,22 @@ instance Eq Church where
 -- >>> compare 1 2
 -- LT
 --
+-- >>> compare maxBound 1
+-- GT
+--
+-- >>> compare 1 maxBound
+-- LT
+--
 -- prop> n < (maxBound :: Church)
 instance Ord Church where
-    (<=) = flip (>=)
-    (>=) n =
+    (<=) n =
         runChurch
             n
-            (\c m ->
-                  runChurch m (const (c (pred m))) True)
-            (\(Church m) ->
-                  m (const False) True)
-    compare n =
-        runChurch
-            n
-            (\c m ->
-                  runChurch m (const (c (pred m))) GT)
-            (\(Church m) ->
-                  m (const LT) EQ)
+            (\a m ->
+                  runChurch m (const (a (pred m))) False)
+            (const True)
+    (>=) = flip (<=)
+    compare = cmpC LT EQ GT
 
 -- | Laziness is maintained
 --
@@ -89,7 +112,7 @@ instance Num Church where
     n - Church m = m pred n
 
 instance Enum Church where
-    fromEnum (Church n) = n succ 0
+    fromEnum n = runChurch' n succ 0
     toEnum n = Church (go (abs n)) where
       go 0 _ = id
       go m f = f . go (m-1) f
@@ -97,40 +120,55 @@ instance Enum Church where
     {-# INLINE pred #-}
     succ (Church n) = Church (\f -> f . n f)
     enumFrom = iterate succ
+    enumFromTo n m = build (\c nl -> runChurch (m - n) (\a e -> e `c` a (succ e)) (`c` nl) n)
+    enumFromThen n = cmpSub (flip iterate n . (+)) (flip iterate n . subtract) (repeat n) n
 
 instance Real Church where
     toRational = toRational . toInteger
 
-quotRem1 :: Church -> Church -> (Church -> Church -> a) -> a
-quotRem1 n m k =
+quot1 :: Church -> Church -> Church
+quot1 n m =
+    let d = n - m
+    in cmp1 d 0 1 (succ (quot1 d m))
+
+rem1 :: Church -> Church -> Church
+rem1 n m =
+    let d = n - m
+    in cmp1 d n 0 (rem1 d m)
+
+quotRem1 :: (Church -> Church -> a) -> Church -> Church -> a
+quotRem1 k n m =
     let d = n - m
     in cmp1 d
       (k 0 n)
       (k 1 0)
-      (quotRem1 d m (k . succ))
-
-newtype MB = MB
-    { runMB :: forall b. ((b -> b -> b) -> b) -> b -> b
-    }
+      (quotRem1 (k . succ) d m)
 
 cmp1 :: Church -> a -> a -> a -> a
 cmp1 c l e g =
-    runMB
-        (runChurch c (\x -> MB (f (runMB x))) (MB (const id)))
+    runMaybeBoolFold
+        (runChurch
+             c
+             (\x ->
+                   MaybeBoolFold
+                       (\k ->
+                             const (k (runMaybeBoolFold x . const))))
+             (MaybeBoolFold (const id)))
         (\bb ->
-              bb g e) l
-  where
-    f x k _ = k (x . const)
-
+              bb g e)
+        l
 
 instance Integral Church where
-    toInteger (Church n) = n succ 0
-    quot n m = quotRem1 (succ n) m const
-    rem n m = quotRem1 (succ n) m (const pred)
-    quotRem n m = quotRem1 (succ n) m (\n' m' -> (n', pred m'))
+    toInteger n = runChurch' n succ 0
+    quot = quot1 . succ
+    rem n = pred . rem1 (succ n)
+    quotRem = quotRem1 (\n m -> (n, pred m)) . succ
 
 instance Show Church where
     showsPrec n = showsPrec n . toInteger
+
+instance Read Church where
+    readPrec = fmap (fromIntegral :: Natural -> Church) readPrec
 
 instance Bounded Church where
     minBound = 0
