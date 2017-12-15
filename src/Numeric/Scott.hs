@@ -7,6 +7,7 @@ import Numeric.Church.Prelude
 import Data.Function (fix)
 import Numeric.Natural
 import Text.Read
+import Data.Ix
 
 newtype Scott = Scott
     { runScott :: forall a. a -> (Scott -> a) -> a
@@ -19,10 +20,10 @@ instance Num Scott where
     signum n = runScott n 0 (const 1)
     fromInteger 0 = Scott const
     fromInteger n = Scott (\_ f -> f (fromInteger (n-1)))
-    n - m = runScott m n (\m' -> runScott n 0 (\n' -> n' - m'))
+    n - m = runScott n 0 (runScott m n . (-))
 
 instance Show Scott where
-    showsPrec n = showsPrec n . fromEnum
+    showsPrec n = showsPrec n . toInteger
 
 instance Read Scott where
     readPrec = fmap (fromIntegral :: Natural -> Scott) readPrec
@@ -37,7 +38,9 @@ instance Ord Scott where
     min n m = runScott n n (\s -> runScott m m (succ . min s))
     max n m = runScott n m (\s -> runScott m n (succ . max s))
     n <= m = runScott n True (runScott m False . (<=))
+    n >= m = runScott m True (runScott n False . (>=))
     n > m = runScott n False (runScott m True . (>))
+    n < m = runScott m False (runScott n True . (<))
 
 instance Enum Scott where
     succ n = Scott (\_ s -> s n)
@@ -88,3 +91,15 @@ instance Integral Scott where
     div = quot
     mod = rem
     divMod = quotRem
+
+instance Ix Scott where
+    range = uncurry enumFromTo
+    inRange = uncurry go
+      where
+        go x y z =
+            runScott x (z <= y) (runScott y False . (runScott z False .) . go)
+    index = uncurry go
+      where
+        go l h i = runScott l (lim 0 i h) (inr h . (inr i .) . go)
+        lim !a m n = runScott m a (inr n . lim (a + 1))
+        inr n = runScott n (error "out of range")

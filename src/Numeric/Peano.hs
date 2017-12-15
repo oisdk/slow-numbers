@@ -4,10 +4,10 @@
 {-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE KindSignatures       #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
 
 -- | Peano numerals. Effort is made to make them as efficient as
 -- possible, and as lazy as possible, but they are many orders of
@@ -38,12 +38,12 @@
 -- False
 module Numeric.Peano where
 
-import           Data.List              (unfoldr)
+import           Data.List                   (unfoldr)
 
-import           Control.DeepSeq        (NFData (rnf))
+import           Control.DeepSeq             (NFData (rnf))
 
-import           Data.Data              (Data, Typeable)
-import           GHC.Generics           (Generic)
+import           Data.Data                   (Data, Typeable)
+import           GHC.Generics                (Generic)
 
 import           Data.Promotion.Prelude
 import           Data.Promotion.Prelude.Enum
@@ -55,6 +55,7 @@ import           Numeric.Natural
 import           Data.Ix
 
 import           Data.Function
+import           Text.Read
 
 -- $setup
 -- >>> import Test.QuickCheck
@@ -80,6 +81,13 @@ $(singletons [d|
       | S Peano
       deriving (Eq,Generic,Data,Typeable)
   |])
+
+toChurch :: Peano -> (a -> a) -> a -> a
+toChurch p f k = go p where
+  go Z     = k
+  go (S n) = f (go n)
+{-# INLINE toChurch #-}
+
 -- | As lazy as possible
 instance Ord Peano where
     compare Z Z         = EQ
@@ -99,10 +107,8 @@ instance Ord Peano where
 --
 -- prop> n >= m ==> m - n == Z
 instance Num Peano where
-    Z + m = m
-    S n + m = S (n + m)
-    Z * _ = Z
-    S n * m = m + n * m
+    (+) n = toChurch n S
+    n * m = toChurch n (m+) Z
     abs = id
     signum Z = 0
     signum _ = 1
@@ -170,9 +176,7 @@ instance Show Peano where
 
 -- | Reads the integer representation.
 instance Read Peano where
-    readsPrec d r =
-        [ (fromIntegral (n :: Natural), xs)
-        | (n,xs) <- readsPrec d r ]
+    readPrec = fmap (fromIntegral :: Natural -> Peano) readPrec
 
 -- | Will obviously diverge for values like `maxBound`.
 instance NFData Peano where
@@ -205,10 +209,10 @@ instance Real Peano where
 instance Enum Peano where
     succ = S
     pred (S n) = n
-    pred Z = error "pred called on zero nat"
+    pred Z     = error "pred called on zero nat"
     fromEnum = go 0
       where
-        go !n Z = n
+        go !n Z     = n
         go !n (S m) = go (1 + n) m
     toEnum = go . check
       where
@@ -220,24 +224,23 @@ instance Enum Peano where
     enumFrom = iterate S
     enumFromTo n m = unfoldr f (n, S m - n)
       where
-        f (_,Z) = Nothing
+        f (_,Z)   = Nothing
         f (e,S l) = Just (e, (S e, l))
     enumFromThen n m = iterate t n
       where
-        ts Z mm = (+) mm
+        ts Z mm          = (+) mm
         ts (S nn) (S mm) = ts nn mm
-        ts nn Z = subtract nn
+        ts nn Z          = subtract nn
         t = ts n m
     enumFromThenTo n m t =
-        unfoldr f (n, if lr then S t - n else S n - t)
+        unfoldr f (n, jm)
       where
         ts (S nn) (S mm) = ts nn mm
-        ts Z mm = (True, mm)
-        ts nn Z = (False, nn)
-        (lr,tt) = ts n m
-        tf = (if lr then (+) else subtract) tt
+        ts Z mm          = (S t - n, (+) mm, mm)
+        ts nn Z          = (S n - t, subtract nn, nn)
+        (jm,tf,tt) = ts n m
         td = subtract tt
-        f (_,Z) = Nothing
+        f (_,Z)       = Nothing
         f (e,l@(S _)) = Just (e, (tf e, td l))
 
 
@@ -245,8 +248,8 @@ $(promoteOnly [d|
   instance Enum Peano where
       succ = S
       pred (S n) = n
-      pred Z = error "pred called on zero nat"
-      fromEnum Z = 0
+      pred Z     = error "pred called on zero nat"
+      fromEnum Z     = 0
       fromEnum (S n) = 1 + fromEnum n
       toEnum 0 = Z
       toEnum n = S (toEnum (n-1))
@@ -261,15 +264,14 @@ instance Integral Peano where
       where
         go !p Z     = p
         go !p (S n) = go (p + 1) n
-    quotRem _ Z = error "divide by zero"
-    quotRem x (S y) = qr Z x (S y)
+    quotRem _ Z = (maxBound, error "divide by zero")
+    quotRem x y = qr Z x y
       where
         qr q n m = go n m
           where
             go nn Z          = qr (S q) nn m
             go (S nn) (S mm) = go nn mm
             go Z (S _)       = (q, n)
-    quot _ Z = error "divide by zero"
     quot n m = go n where
       go = subt m where
         subt Z nn          = S (go nn)
@@ -278,9 +280,9 @@ instance Integral Peano where
     rem _ Z = error "divide by zero"
     rem nn mm = r nn mm where
       r n m = go n m where
-        go nnn Z = r nnn m
+        go nnn Z           = r nnn m
         go (S nnn) (S mmm) = go nnn mmm
-        go Z (S _) = n
+        go Z (S _)         = n
     div = quot
     mod = rem
     divMod = quotRem
@@ -288,15 +290,15 @@ instance Integral Peano where
 instance Ix Peano where
     range = uncurry enumFromTo
     inRange = uncurry go where
-      go (S _) _ Z = False
-      go Z y x = x <= y
+      go (S _) _ Z         = False
+      go Z y x             = x <= y
       go (S x) (S y) (S z) = go x y z
-      go (S _) Z (S _) = False
+      go (S _) Z (S _)     = False
     index = uncurry go where
-      go Z h i = lim 0 h i
-      go (S _) _ Z = error "out of range"
+      go Z h i             = lim 0 h i
+      go (S _) _ Z         = error "out of range"
       go (S l) (S h) (S i) = go l h i
-      go (S _) Z (S _) = error "out of range"
-      lim _ Z (S _) = error "out of range"
+      go (S _) Z (S _)     = error "out of range"
+      lim _ Z (S _)      = error "out of range"
       lim !a (S n) (S m) = lim (a + 1) n m
-      lim !a _ Z = a
+      lim !a _ Z         = a
