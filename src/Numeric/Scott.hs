@@ -38,9 +38,9 @@ instance Ord Scott where
     min n m = runScott n n (\s -> runScott m m (succ . min s))
     max n m = runScott n m (\s -> runScott m n (succ . max s))
     n <= m = runScott n True (runScott m False . (<=))
-    n >= m = runScott m True (runScott n False . (>=))
+    (>=) = flip (<=)
     n > m = runScott n False (runScott m True . (>))
-    n < m = runScott m False (runScott n True . (<))
+    (<) = flip (>)
 
 instance Enum Scott where
     succ n = Scott (\_ s -> s n)

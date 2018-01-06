@@ -12,6 +12,7 @@ import           Test.DocTest
 
 import           Numeric.Peano
 import           Numeric.Church
+import           Numeric.Scott
 
 import           Control.Monad
 
@@ -175,6 +176,31 @@ prop_ChurchEnum =
         (>= 0)
         (Gen.integral (Range.linear 0 50))
         (Gen.integral (Range.linear @Church 0 50))
+
+prop_ScottAdd :: Property
+prop_ScottAdd = binaryProp @Scott (+) 0 1000 (\_ _ -> True)
+
+prop_ScottMul :: Property
+prop_ScottMul = binaryProp @Scott (*) 0 100 (\_ _ -> True)
+
+prop_ScottSub :: Property
+prop_ScottSub = withDiscards 1000 $ binaryProp @Scott (-) 0 1000 (>=)
+
+prop_ScottRem :: Property
+prop_ScottRem = withTests 30 $ binaryProp @Scott rem 0 50 (\_ y -> y > 0)
+
+prop_ScottQuot :: Property
+prop_ScottQuot = withTests 30 $ binaryProp @Scott quot 0 50 (\_ y -> y > 0)
+
+prop_ScottOrd :: Property
+prop_ScottOrd = ordProps (Gen.integral (Range.linear @Scott 0 50))
+
+prop_ScottEnum :: Property
+prop_ScottEnum =
+    enumProps
+        (>= 0)
+        (Gen.integral (Range.linear 0 50))
+        (Gen.integral (Range.linear @Scott 0 50))
 
 prop_PeanoInRange :: Property
 prop_PeanoInRange = property $ do
