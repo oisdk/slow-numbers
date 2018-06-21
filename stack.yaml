@@ -3,5 +3,5 @@ extra-package-dbs: []
 packages:
 - '.'
 extra-deps:
-- hedgehog-0.1
-resolver: lts-8.12
+- hedgehog-checkers-0.1.0.0
+resolver: lts-11.14

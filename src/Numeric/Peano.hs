@@ -209,38 +209,36 @@ instance Real Peano where
 instance Enum Peano where
     succ = S
     pred (S n) = n
-    pred Z     = error "pred called on zero nat"
+    pred Z = error "pred called on zero nat"
     fromEnum = go 0
       where
-        go !n Z     = n
+        go !n Z = n
         go !n (S m) = go (1 + n) m
-    toEnum = go . check
+    toEnum m
+      | m < 0 = error "cannot convert negative number to Peano"
+      | otherwise = go m
       where
-        check n
-          | n < 0 = error "cannot convert negative number to Peano"
-          | otherwise = n
         go 0 = Z
         go n = S (go (n - 1))
     enumFrom = iterate S
     enumFromTo n m = unfoldr f (n, S m - n)
       where
-        f (_,Z)   = Nothing
+        f (_,Z) = Nothing
         f (e,S l) = Just (e, (S e, l))
     enumFromThen n m = iterate t n
       where
-        ts Z mm          = (+) mm
+        ts Z mm = (+) mm
         ts (S nn) (S mm) = ts nn mm
-        ts nn Z          = subtract nn
+        ts nn Z = subtract nn
         t = ts n m
-    enumFromThenTo n m t =
-        unfoldr f (n, jm)
+    enumFromThenTo n m t = unfoldr f (n, jm)
       where
         ts (S nn) (S mm) = ts nn mm
-        ts Z mm          = (S t - n, (+) mm, mm)
-        ts nn Z          = (S n - t, subtract nn, nn)
+        ts Z mm = (S t - n, (+) mm, mm)
+        ts nn Z = (S n - t, subtract nn, nn)
         (jm,tf,tt) = ts n m
         td = subtract tt
-        f (_,Z)       = Nothing
+        f (_,Z) = Nothing
         f (e,l@(S _)) = Just (e, (tf e, td l))
 
 

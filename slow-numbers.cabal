@@ -1,52 +1,94 @@
-name:                slow-numbers
-version:             0.1.0.0
-synopsis:            Library for the slower number types, like Peano, Church, etc.
-homepage:            https://github.com/oisdk/slow-numbers#readme
-license:             MIT
-license-file:        LICENSE
-author:              Donnacha Oisín Kidney
-maintainer:          mail@doisinkidney.com
-copyright:           2016 Donnacha Oisín Kidney
-category:            Numeric
-build-type:          Simple
-extra-source-files:  README.md
-cabal-version:       >=1.10
+-- This file has been generated from package.yaml by hpack version 0.28.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 11e71a59bf4d726974b8311b7839494b62e4db02f90bc1f276dc2d0de2f19cf5
 
-library
-  hs-source-dirs:      src
-  exposed-modules:     Numeric.Peano
-                     , Numeric.Church
-                     , Numeric.Scott
-  other-modules:       Numeric.Church.Prelude
-  build-depends:       base >= 4.7 && < 5
-                     , singletons >= 2
-                     , deepseq >= 1.4
-  default-language:    Haskell2010
-
-test-suite slow-numbers-test
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      test
-  main-is:             Spec.hs
-  build-depends:       base
-                     , slow-numbers
-                     , hedgehog >= 0.1
-                     , doctest
-                     , QuickCheck
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  default-language:    Haskell2010
-
-benchmark bench
-  default-language:    Haskell2010
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      bench
-  main-is:             bench.hs
-  ghc-options:         -O2 -rtsopts -threaded
-
-  build-depends:       base >=4.8
-                     , slow-numbers
-                     , criterion >=0.1
-  
+name:           slow-numbers
+version:        0.1.0.0
+description:    Library for the slower number types, like Peano, Church, etc.
+category:       Numeric
+homepage:       https://github.com/oisdk/slow-numbers#readme
+bug-reports:    https://github.com/oisdk/slow-numbers/issues
+author:         Donnacha Oisín Kidney
+maintainer:     mail@doisinkidney.com
+copyright:      2016 Donnacha Oisín Kidney
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
+extra-source-files:
+    README.md
 
 source-repository head
-  type:     git
+  type: git
   location: https://github.com/oisdk/slow-numbers
+
+library
+  exposed-modules:
+      Numeric.Church
+      Numeric.Peano
+      Numeric.Peano.Proofs
+      Numeric.Positional
+      Numeric.Scott
+  other-modules:
+      Numeric.Church.Prelude
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -fwarn-incomplete-record-updates -fwarn-incomplete-uni-patterns -fwarn-redundant-constraints -Wcompat
+  build-depends:
+      base >=4.10
+    , deepseq >=1.4
+    , singletons >=2
+  default-language: Haskell2010
+
+test-suite slow-numbers-doctests
+  type: exitcode-stdio-1.0
+  main-is: doctests.hs
+  other-modules:
+      Paths_slow_numbers
+  hs-source-dirs:
+      doctest
+  ghc-options: -Wall -fwarn-incomplete-record-updates -fwarn-incomplete-uni-patterns -fwarn-redundant-constraints -Wcompat -threaded
+  build-depends:
+      QuickCheck
+    , base >=4.10
+    , deepseq >=1.4
+    , doctest
+    , singletons >=2
+    , slow-numbers
+  default-language: Haskell2010
+
+test-suite slow-numbers-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_slow_numbers
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -fwarn-incomplete-record-updates -fwarn-incomplete-uni-patterns -fwarn-redundant-constraints -Wcompat -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.10
+    , deepseq >=1.4
+    , hedgehog
+    , hedgehog-checkers
+    , singletons >=2
+    , slow-numbers
+  default-language: Haskell2010
+
+benchmark bench
+  type: exitcode-stdio-1.0
+  main-is: bench.hs
+  other-modules:
+      Paths_slow_numbers
+  hs-source-dirs:
+      bench
+  ghc-options: -Wall -fwarn-incomplete-record-updates -fwarn-incomplete-uni-patterns -fwarn-redundant-constraints -Wcompat -threaded -rtsopts -with-rtsopts=-N -O2
+  build-depends:
+      base >=4.10
+    , criterion
+    , deepseq >=1.4
+    , random
+    , singletons >=2
+    , slow-numbers
+  default-language: Haskell2010
