@@ -19,23 +19,6 @@ import           Control.Monad
 
 import           Data.Ix
 
-binaryPropNum
-    :: forall a.
-       Num a
-    => (a -> Integer)
-    -> (forall t. Num t => t -> t -> t)
-    -> Integer
-    -> Integer
-    -> (Integer -> Integer -> Bool)
-    -> Property
-binaryPropNum toInt op lb ub cond = property $ do
-    x <- forAll (Gen.integral (Range.linear lb ub))
-    y <- forAll (Gen.integral (Range.linear lb ub))
-    guard (cond x y)
-    let zb = op x y
-    let zt = op (fromInteger @a x) (fromInteger y)
-    zb === toInt zt
-
 binaryProp
     :: forall a.
        Integral a
@@ -114,19 +97,19 @@ prop_PeanoEnum =
         (Gen.integral (Range.linear @Peano 0 1000))
 
 prop_PositionalAdd :: Property
-prop_PositionalAdd = binaryPropNum @(Positional 10) unPositional (+) 0 1000 (\_ _ -> True)
+prop_PositionalAdd = binaryProp @(Positional 10) (+) 0 1000 (\_ _ -> True)
 
 prop_PositionalMul :: Property
-prop_PositionalMul = binaryPropNum @(Positional 10) unPositional (*) 0 1000 (\_ _ -> True)
+prop_PositionalMul = binaryProp @(Positional 10) (*) 0 1000 (\_ _ -> True)
 
 prop_PositionalSub :: Property
-prop_PositionalSub = withDiscards 1000 $ binaryPropNum @(Positional 10) unPositional (-) 0 1000 (>=)
+prop_PositionalSub = withDiscards 1000 $ binaryProp @(Positional 10) (-) 0 1000 (>=)
 
--- prop_PositionalRem :: Property
--- prop_PositionalRem = binaryProp @Peano rem 0 1000 (\_ y -> y > 0)
+prop_PositionalRem :: Property
+prop_PositionalRem = binaryProp @(Positional 10) rem 0 1000 (\_ y -> y > 0)
 
--- prop_PositionalQuot :: Property
--- prop_PositionalQuot = binaryProp @Peano quot 0 1000 (\_ y -> y > 0)
+prop_PositionalQuot :: Property
+prop_PositionalQuot = binaryProp @(Positional 10) quot 0 1000 (\_ y -> y > 0)
 
 prop_PositionalOrd :: Property
 prop_PositionalOrd = property

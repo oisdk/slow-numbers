@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 11e71a59bf4d726974b8311b7839494b62e4db02f90bc1f276dc2d0de2f19cf5
+-- hash: ef4e829456085a3d4cd76ce81b2b8aa4ee1e53a4bcb252e1bbca016867f76f45
 
 name:           slow-numbers
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 library
   exposed-modules:
       Numeric.Church
+      Numeric.PAdic
       Numeric.Peano
       Numeric.Peano.Proofs
       Numeric.Positional

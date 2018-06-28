@@ -28,7 +28,6 @@ unPositional (Positional xs) = foldr f 0 xs
     b = toInteger (natVal (Proxy :: Proxy n))
     f e a = toInteger e + b * a
 
-
 instance Ord (Positional n) where
     compare = coerce (go EQ)
       where
@@ -75,26 +74,24 @@ instance KnownNat n =>
                 (case m `quotRem` b of
                      (q,r) -> (r, q))
     _ * Positional [] = Positional []
-    Positional xs * Positional (yh:ys) = Positional (wrap (foldr f [] xs))
+    Positional xs * Positional (yh:ys) = Positional (foldr f [] xs)
       where
-        f x zs = (x * yh) : foldr (g x) id ys zs
-        g x y a (z:zs) = (x * y + z) : a zs
-        g x y a [] = (x * y) : a []
+        f x zs = (x * yh) -: foldr (g x) id ys zs
+        g x y a (z:zs) = (x * y + z) -: a zs
+        g x y a [] = (x * y) -: a []
         b = natVal (Proxy :: Proxy n)
-        wrap [] = []
-        wrap (z:zs)
-          | z < b = z : wrap zs
-          | otherwise =
-              case z `quotRem` b of
-                  (q,r) -> r : carry q zs
         carry c [] = [c]
         carry c (z:zs)
-          | z' < b = z' : wrap zs
+          | z' < b = z' : zs
           | otherwise =
               case z' `quotRem` b of
                   (q,r) -> r : carry q zs
           where
             z' = c + z
+        z -: zs
+            | z < b = z : zs
+            | otherwise = case z `quotRem` b of
+                (q,r) -> r : carry q zs
     (-) = go (0 :: Word) `upon` runPositional
       where
         i = natVal (Proxy :: Proxy n)
@@ -127,6 +124,50 @@ instance KnownNat n =>
 
         pad 0 xs = xs
         pad n xs = 0 : pad (pred n) xs
+
+instance KnownNat n =>
+         Enum (Positional n) where
+    succ = coerce go
+      where
+        go :: [Natural] -> [Natural]
+        go [] = [1]
+        go (x:xs)
+          | x' >= p = 0 : go xs
+          | otherwise = x' : xs
+          where x' = x + 1
+        p = natVal (Proxy :: Proxy n)
+    pred = coerce go
+      where
+        go :: [Natural] -> [Natural]
+        go [] = error "pred called on zero"
+        go (0:xs) = p : go xs
+        go (x:xs) = (x-1) : xs
+        p = natVal (Proxy :: Proxy n) - 1
+    fromEnum (Positional xs) = foldr f (const id) xs 1 0
+      where
+        p = fromEnum (natVal (Proxy :: Proxy n))
+        f !e a !i !n = a (i*p) (fromEnum e * i + n)
+    toEnum = Positional . unfoldr f . toEnum
+      where
+        b = natVal (Proxy :: Proxy n)
+        f 0 = Nothing
+        f m =
+            Just
+                (case m `quotRem` b of
+                     (q,r) -> (r, q))
+
+instance KnownNat n => Real (Positional n) where
+    toRational = toRational . toInteger
+
+instance KnownNat n =>
+         Integral (Positional n) where
+    toInteger (Positional xs) = toInteger (foldr f (const id) xs 1 0)
+      where
+        p = natVal (Proxy :: Proxy n)
+        f !e a !i !n = a (i * p) (e * i + n)
+    quotRem n m =
+        case quotRem (toInteger n) (toInteger m) of
+            (q,r) -> (fromInteger q, fromInteger r)
 
 para :: (a -> [a] -> b -> b) -> b -> [a] -> b
 para f b = go
