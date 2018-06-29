@@ -1,23 +1,27 @@
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TypeApplications    #-}
 
 import           Hedgehog
-import qualified Hedgehog.Gen       as Gen
-import qualified Hedgehog.Range     as Range
 import           Hedgehog.Checkers
+import qualified Hedgehog.Gen        as Gen
+import qualified Hedgehog.Range      as Range
 
-import           Numeric.Peano
 import           Numeric.Church
-import           Numeric.Scott
+import           Numeric.PAdic
+import           Numeric.Peano
 import           Numeric.Positional
+import           Numeric.Scott
 
+import           Control.Applicative
 import           Control.Monad
-
+import           Data.Bool
 import           Data.Ix
+import           Data.Proxy
+import           GHC.TypeNats
 
 binaryProp
     :: forall a.
@@ -145,8 +149,8 @@ prop_ChurchEnum :: Property
 prop_ChurchEnum =
     enumProps
         (>= 0)
-        (Gen.integral (Range.linear 0 50))
-        (Gen.integral (Range.linear @Church 0 50))
+        (Gen.integral (Range.linear 0 10))
+        (Gen.integral (Range.linear @Church 0 10))
 
 prop_ScottAdd :: Property
 prop_ScottAdd = binaryProp @Scott (+) 0 1000 (\_ _ -> True)
@@ -187,6 +191,74 @@ prop_PeanoIndex = property $ do
     i <- forAll (Gen.integral (Range.linear l u))
     unless (inRange (l,u) i) discard
     index (l,u) i === fromEnum (i - l)
+
+genPAdic
+    :: forall n.
+       KnownNat n
+    => Gen (PAdic n)
+genPAdic =
+    liftA2
+        (foldr (:+) . bool Zero Repeating)
+        Gen.bool
+        (Gen.list
+             (Range.linear 0 10)
+             (Gen.integral (Range.linear 0 (natVal (Proxy :: Proxy n) - 1))))
+
+prop_PAdicRing :: Property
+prop_PAdicRing = property $ do
+    x <- forAll (genPAdic @5)
+    y <- forAll (genPAdic @5)
+    z <- forAll (genPAdic @5)
+    annotate "+ Associative"
+    (x + y) + z === x + (y + z)
+    annotate "+ Commutative"
+    (x + y) === (y + x)
+    annotate "+ 0 Neutral"
+    x + 0 === x
+    annotate "negate inverse"
+    x + negate x === 0
+    annotate "* Associative"
+    (x * y) * z === x * (y * z)
+    annotate "* 1 neutral"
+    x * 1 === x
+    1 * x === x
+    annotate "* distributive"
+    x * (y + z) === (x * y) + (x * z)
+    (y + z) * x === (y * x) + (z * x)
+    annotate "* commutative"
+    x * y === y * x
+    annotate "* 0 annihiliates"
+    x * 0 === 0
+    0 * x === 0
+
+prop_PAdicOrd :: Property
+prop_PAdicOrd = property $ ord (genPAdic @5) go
+  where
+    go
+        :: forall n.
+           KnownNat n
+        => PAdic n -> Gen (PAdic n)
+    go Zero = genPAdic
+    go Repeating = Gen.constant Repeating
+    go (x :+ xs) =
+        case compare x b of
+            LT ->
+                Gen.choice
+                    [ Gen.subtermM
+                          (go xs)
+                          (\xs' ->
+                                fmap (:+ xs') (Gen.integral (Range.linear x b)))
+                    , Gen.subtermM
+                          genPAdic
+                          (\xs' -> fmap (:+ xs') (Gen.integral (Range.linear (x+1) b)))]
+            EQ ->
+                Gen.subtermM
+                    (go xs)
+                    (\xs' ->
+                          fmap (:+ xs') (Gen.integral (Range.linear x b)))
+            GT -> error "Malformed PAdic"
+      where
+        b = natVal (Proxy :: Proxy n) - 1
 
 main :: IO Bool
 main = checkParallel $$(discover)

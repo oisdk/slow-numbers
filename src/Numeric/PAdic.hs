@@ -2,47 +2,122 @@
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE PatternGuards       #-}
 
-module Numeric.PAdic where
+-- | \(p\)-adic numbers.
+module Numeric.PAdic (PAdic(..)) where
 
 import           Data.Proxy
 import           GHC.TypeNats
 import           Numeric.Natural
+{-|
+The \(p\)-adic numbers are represented as in a normal positional
+number system (with base \(p\)), with a different notion of "distance"
+than most systems. Basically, numbers are closer if their least
+significant digits are closer. So, when \(p=10\), \(362_{10}\) is
+"closer" to \(2_{10}\) than it is to \(363_{10}\). One way to think
+about this is that the numbers are ordered lexicographically (from
+least-significant to most-significant digit).
 
+The 'Ord' instance reflects this:
+
+>>> 362 < (3 :: PAdic 10)
+True
+
+In many cases, \(p\)-adic numbers behave as normal positional numbers:
+
+>>> 45 + 63 :: PAdic 10
+108
+
+However, they diverge when it comes to representing negative numbers.
+In decimal, an infinitely repeating digit goes to the right:
+
+\[\frac{1}{3} = 0.333333\overline{3}\]
+
+The <https://en.wikipedia.org/wiki/Vinculum_(symbol) vinculum> is
+placed at the right end of the number.
+
+However, in \(p\)-adic numbers, because of the implications of the
+ordering, infinitely repeating digits trail to the left.
+
+>>> 5 :+ Repeating :: PAdic 10
+9̅5
+
+For this reason, a negative number can be represented as a sequence
+of digits terminated by an infinitely repeated \(p-1\). For instance,
+ \(-1_{10}\) is:
+
+>>> -1 :: PAdic 10
+9̅
+
+Addition and subtraction still work as you would expect:
+
+prop> x - x === Zero @10
+-}
 infixr 5 :+
 data PAdic (n :: Nat)
-    = Natural :+ PAdic n
+    = !Natural :+ PAdic n
     | Zero
     | Repeating
 
-instance KnownNat n => Show (PAdic n) where
-    showsPrec _ Zero = (:) '0'
-    showsPrec _ zs = go zs
-      where
-        go (x :+ xs) s = go xs (shows x s)
-        go Zero s      = s
-        go Repeating s = shows (natVal (Proxy :: Proxy n) - 1) ('\773' : s)
+foldPAdic :: (Natural -> b -> b) -> b -> b -> PAdic n -> b
+foldPAdic f z r = go
+  where
+    go Zero = z
+    go Repeating = r
+    go (x :+ xs) = f x (go xs)
 
-instance KnownNat n => Eq (PAdic n) where
+compress :: forall n. KnownNat n => PAdic n -> PAdic n
+compress = foldPAdic f Zero Repeating
+  where
+    f x xs
+      | x == 0   , Zero      <- xs = Zero
+      | x == nine, Repeating <- xs = Repeating
+      | otherwise                  = x :+ xs
+    nine = natVal (Proxy :: Proxy n) - 1
+
+instance KnownNat n =>
+         Show (PAdic n) where
+    showsPrec _ = go . compress
+      where
+        go Zero = (:) '0'
+        go zs = foldPAdic f id r zs
+        f x xs s = xs (shows x s)
+        r s =
+            foldr
+                (\x xs ->
+                      x : '\773' : xs)
+                s
+                (show (natVal (Proxy :: Proxy n) - 1))
+
+instance KnownNat n =>
+         Eq (PAdic n) where
     (x :+ xs) == (y :+ ys) = x == y && xs == ys
     Repeating == Repeating = True
     Zero == Zero = True
     (x :+ xs) == Zero = x == 0 && xs == Zero
-    (x :+ xs) == Repeating = x == (natVal (Proxy :: Proxy n) - 1) && xs == Repeating
+    (x :+ xs) == Repeating =
+        x == (natVal (Proxy :: Proxy n) - 1) && xs == Repeating
     Zero == (y :+ ys) = 0 == y && ys == Zero
-    Repeating == (y :+ ys) = (natVal (Proxy :: Proxy n) - 1 == y) && Repeating == ys
+    Repeating == (y :+ ys) =
+        (natVal (Proxy :: Proxy n) - 1 == y) && Repeating == ys
     _ == _ = False
 
-instance KnownNat n => Ord (PAdic n) where
+instance KnownNat n =>
+         Ord (PAdic n) where
     compare (x :+ xs) (y :+ ys) = compare x y `mappend` compare xs ys
     compare Zero Zero = EQ
     compare Repeating Repeating = EQ
     compare Zero Repeating = LT
     compare Repeating Zero = GT
     compare (x :+ xs) Zero = compare x 0 `mappend` compare xs Zero
-    compare (x :+ xs) Repeating = compare x (natVal (Proxy :: Proxy n) - 1) `mappend` compare xs Repeating
+    compare (x :+ xs) Repeating =
+        compare x (natVal (Proxy :: Proxy n) - 1) `mappend`
+        compare xs Repeating
     compare Zero (y :+ ys) = compare 0 y `mappend` compare Zero ys
-    compare Repeating (y :+ ys) = compare (natVal (Proxy :: Proxy n) - 1) y `mappend` compare Repeating ys
+    compare Repeating (y :+ ys) =
+        compare (natVal (Proxy :: Proxy n) - 1) y `mappend`
+        compare Repeating ys
 
 instance KnownNat n =>
          Num (PAdic n) where
@@ -103,9 +178,9 @@ instance KnownNat n =>
         \case
             Zero -> Zero
             Repeating -> negate xs
-            yh :+ ys -> foldrP f (negate (yh :+ ys)) Zero xs
+            yh :+ ys -> foldPAdic f Zero (negate (yh :+ ys)) xs
                 where b = natVal (Proxy :: Proxy n)
-                      f x zs = (x * yh) `cons` foldrP (g x) (e x) id ys zs
+                      f x zs = (x * yh) `cons` foldPAdic (g x) id (e x) ys zs
                       e x zs = negate (x :+ Zero) + zs
                       g x y a (z :+ zs) = (x * y + z) `cons` a zs
                       g x y a Zero      = (x * y) `cons` a Zero
@@ -114,8 +189,19 @@ instance KnownNat n =>
                           case quotRem z b of
                               (0,r) -> r :+ zs
                               (q,r) -> r :+ (fromIntegral q + zs)
-                      foldrP _ _ b' Zero       = b'
-                      foldrP _ r _ Repeating   = r
-                      foldrP f' r b' (z :+ zs) = f' z (foldrP f' r b' zs)
     abs = error "abs not defined on P-adic numbers"
     signum = error "signum not defined on P-adic numbers"
+
+-- $setup
+-- >>> :set -XDataKinds
+-- >>> :set -XScopedTypeVariables
+-- >>> :set -XTypeApplications
+-- >>> import GHC.TypeNats
+-- >>> import Test.QuickCheck
+-- >>> import Control.Applicative
+-- >>> :{
+-- instance KnownNat n => Arbitrary (PAdic n) where
+--   arbitrary = liftA2 (foldr f) (elements [Zero,Repeating]) arbitrary
+--     where
+--       f (NonNegative n) xs = (fromInteger n `mod` natVal (Proxy :: Proxy n)) :+ xs
+-- :}
